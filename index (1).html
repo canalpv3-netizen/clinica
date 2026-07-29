@@ -1,0 +1,1130 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Clínica de Depilação</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useCallback } = React;
+
+/* ---------- Conexão com o Supabase ---------- */
+/* Troque estes dois valores se um dia mudar de projeto no Supabase. */
+const SUPABASE_URL = "https://oqlxyoylbdfzhmipbxvs.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9xbHh5b3lsYmRmemhtaXBieHZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNTA1NzgsImV4cCI6MjEwMDgyNjU3OH0.q7o4Bj9oAmflLDS0ek7UKSRHtOAWVAGqM2LBrpbDx5A";
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+async function getValue(key) {
+  const { data, error } = await supabaseClient
+    .from("app_storage")
+    .select("value")
+    .eq("key", key)
+    .maybeSingle();
+  if (error) {
+    console.error("Erro ao ler do Supabase:", error);
+    return null;
+  }
+  return data ? data.value : null;
+}
+
+async function setValue(key, value) {
+  const { error } = await supabaseClient
+    .from("app_storage")
+    .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+  if (error) {
+    console.error("Erro ao salvar no Supabase:", error);
+    return null;
+  }
+  return { key, value };
+}
+
+/* ---------- Ícones (desenhados aqui, sem depender de pacote externo) ---------- */
+function IconBase({ children, size = 24, color = "currentColor", className = "", style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className={className} style={style}>
+      {children}
+    </svg>
+  );
+}
+const Calendar = (p) => <IconBase {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></IconBase>;
+const Clock = (p) => <IconBase {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></IconBase>;
+const Phone = (p) => <IconBase {...p}><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2Z" /></IconBase>;
+const Plus = (p) => <IconBase {...p}><path d="M12 5v14M5 12h14" /></IconBase>;
+const Trash2 = (p) => <IconBase {...p}><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /></IconBase>;
+const ChevronRight = (p) => <IconBase {...p}><path d="M9 6l6 6-6 6" /></IconBase>;
+const Check = (p) => <IconBase {...p}><path d="M20 6 9 17l-5-5" /></IconBase>;
+const Settings = (p) => <IconBase {...p}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9 2 2 0 1 1-2.8 2.8 1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6 2 2 0 1 1-4 0 1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3 2 2 0 1 1-2.8-2.8 1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1 2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9 2 2 0 1 1 2.8-2.8 1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 11 3a2 2 0 1 1 4 0 1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3 2 2 0 1 1 2.8 2.8 1.7 1.7 0 0 0-.3 1.9c.2.6.9 1 1.6 1a2 2 0 1 1 0 4 1.7 1.7 0 0 0-1.6 1Z" /></IconBase>;
+const User = (p) => <IconBase {...p}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></IconBase>;
+const X = (p) => <IconBase {...p}><path d="M18 6 6 18M6 6l12 12" /></IconBase>;
+const Loader2 = (p) => <IconBase {...p}><path d="M12 3a9 9 0 1 0 9 9" /></IconBase>;
+const Lock = (p) => <IconBase {...p}><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></IconBase>;
+
+
+// ---------- Paleta de identidade (tokens) ----------
+const C = {
+  bg: "#FFF8F5",
+  surface: "#FFFFFF",
+  rose100: "#FBE4E6",
+  rose200: "#F3D0D5",
+  rose300: "#EAB6BC",
+  rose500: "#D98A96",
+  rose600: "#C9707E",
+  rose700: "#B85C6B",
+  plum900: "#3D2833",
+  plum700: "#5A4048",
+  plum400: "#8C7178",
+  gold500: "#C9A15A",
+  gold100: "#F3E7D2",
+  line: "#EFDEDF",
+};
+
+const SERVICE_COLORS = [
+  "#E8A0A8",
+  "#D4739E",
+  "#C08497",
+  "#E6C79C",
+  "#B8869B",
+  "#F2B5C4",
+  "#9E7B9B",
+  "#EFAFC4",
+  "#D9A5B3",
+  "#C97B8B",
+  "#E7BFA5",
+  "#A8879C",
+];
+
+const WEEKDAYS = [
+  { key: "0", label: "Domingo", short: "Dom" },
+  { key: "1", label: "Segunda", short: "Seg" },
+  { key: "2", label: "Terça", short: "Ter" },
+  { key: "3", label: "Quarta", short: "Qua" },
+  { key: "4", label: "Quinta", short: "Qui" },
+  { key: "5", label: "Sexta", short: "Sex" },
+  { key: "6", label: "Sábado", short: "Sáb" },
+];
+
+const PROFESSIONAL_PIN = "0002";
+
+const DEFAULT_CONFIG = {
+  whatsapp: "",
+  salonName: "Clínica de Depilação",
+  services: [
+    { id: "s1", name: "Depilação Axilas", price: 35, duration: 30, color: "#E8A0A8" },
+    { id: "s2", name: "Depilação Pernas Completas", price: 80, duration: 60, color: "#D4739E" },
+    { id: "s3", name: "Depilação Buço", price: 20, duration: 15, color: "#E6C79C" },
+    { id: "s4", name: "Depilação Íntima", price: 70, duration: 45, color: "#9E7B9B" },
+  ],
+  // Cada dia tem sua própria lista de horários específicos escolhidos pela profissional
+  // (ex.: "10:20", "21:40" — não precisam seguir um intervalo fixo)
+  schedule: {
+    "0": { active: false, slots: [] },
+    "1": { active: true, slots: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"] },
+    "2": { active: true, slots: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"] },
+    "3": { active: true, slots: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"] },
+    "4": { active: true, slots: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"] },
+    "5": { active: true, slots: ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"] },
+    "6": { active: false, slots: [] },
+  },
+};
+
+function sortTimes(list) {
+  return [...list].sort((a, b) => a.localeCompare(b));
+}
+
+function toISODate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatBRL(v) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function Flourish({ style }) {
+  return (
+    <svg width="120" height="14" viewBox="0 0 120 14" fill="none" style={style}>
+      <path
+        d="M2 7 C20 -3, 30 17, 48 7 S76 -3, 94 7 S110 14, 118 7"
+        stroke={C.gold500}
+        strokeWidth="1.2"
+        fill="none"
+      />
+      <circle cx="60" cy="7" r="2.5" fill={C.gold500} />
+    </svg>
+  );
+}
+
+// ---------- Marcador de cor do serviço (sem ilustrações) ----------
+function ServiceDot({ color, size = 14 }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "999px",
+        backgroundColor: color,
+        border: "1px solid rgba(0,0,0,0.08)",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+function App() {
+  const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState(DEFAULT_CONFIG);
+  const [bookings, setBookings] = useState([]);
+  const [tab, setTab] = useState("cliente");
+  const [saveError, setSaveError] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let cfg = DEFAULT_CONFIG;
+        try {
+          const v = await getValue("config");
+          if (v) cfg = { ...DEFAULT_CONFIG, ...v };
+        } catch (e) {
+          /* chave ainda não existe */
+        }
+        let bks = [];
+        try {
+          const v2 = await getValue("bookings");
+          if (v2) bks = v2;
+        } catch (e) {
+          /* chave ainda não existe */
+        }
+        setConfig(cfg);
+        setBookings(bks);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const persistConfig = useCallback(async (next) => {
+    setConfig(next);
+    try {
+      const res = await setValue("config", next);
+      if (!res) setSaveError("Não foi possível salvar. Tente novamente.");
+      else setSaveError("");
+    } catch (e) {
+      setSaveError("Não foi possível salvar. Tente novamente.");
+    }
+  }, []);
+
+  const persistBookings = useCallback(async (next) => {
+    setBookings(next);
+    try {
+      const res = await setValue("bookings", next);
+      if (!res) setSaveError("Não foi possível salvar o agendamento.");
+      else setSaveError("");
+    } catch (e) {
+      setSaveError("Não foi possível salvar o agendamento.");
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: C.bg }}
+      >
+        <Loader2 className="animate-spin" color={C.rose600} size={32} />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="min-h-screen"
+      style={{
+        backgroundColor: C.bg,
+        fontFamily: "'Jost', 'Poppins', sans-serif",
+        color: C.plum900,
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500;600&display=swap');
+        .font-display { font-family: 'Playfair Display', serif; }
+        input:focus, select:focus, textarea:focus { outline: 2px solid ${C.rose500}; outline-offset: 1px; }
+        button:focus-visible { outline: 2px solid ${C.rose700}; outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+      `}</style>
+
+      <header className="px-6 pt-10 pb-6 text-center">
+        <p
+          className="text-xs tracking-[0.3em] uppercase mb-2"
+          style={{ color: C.gold500 }}
+        >
+          bem-vinda
+        </p>
+        <h1 className="font-display text-4xl sm:text-5xl" style={{ color: C.plum900 }}>
+          {config.salonName}
+        </h1>
+        <div className="flex justify-center mt-3">
+          <Flourish />
+        </div>
+      </header>
+
+      <nav className="flex justify-center px-4">
+        <div
+          className="inline-flex rounded-full p-1"
+          style={{ backgroundColor: C.rose100, border: `1px solid ${C.line}` }}
+        >
+          <button
+            onClick={() => setTab("cliente")}
+            className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition"
+            style={{
+              backgroundColor: tab === "cliente" ? C.surface : "transparent",
+              color: tab === "cliente" ? C.rose700 : C.plum400,
+              boxShadow: tab === "cliente" ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+            }}
+          >
+            <User size={16} /> Cliente
+          </button>
+          <button
+            onClick={() => setTab("profissional")}
+            className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition"
+            style={{
+              backgroundColor: tab === "profissional" ? C.surface : "transparent",
+              color: tab === "profissional" ? C.rose700 : C.plum400,
+              boxShadow: tab === "profissional" ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+            }}
+          >
+            <Settings size={16} /> Profissional
+          </button>
+        </div>
+      </nav>
+
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
+        {saveError && (
+          <div
+            className="mb-4 px-4 py-2 rounded-xl text-sm"
+            style={{ backgroundColor: "#FDEDEE", color: "#9B3B45" }}
+          >
+            {saveError}
+          </div>
+        )}
+        {tab === "cliente" ? (
+          <ClientView config={config} bookings={bookings} onBook={persistBookings} />
+        ) : unlocked ? (
+          <ProfessionalView
+            config={config}
+            bookings={bookings}
+            onSaveConfig={persistConfig}
+            onSaveBookings={persistBookings}
+          />
+        ) : (
+          <ProfessionalGate onUnlock={() => setUnlocked(true)} />
+        )}
+      </main>
+
+      <footer className="text-center pb-8 pt-4">
+        <p className="text-xs" style={{ color: C.plum400 }}>
+          feito com carinho para deixar sua pele lisinha e macia
+        </p>
+      </footer>
+    </div>
+  );
+}
+
+// ================= ABA CLIENTE =================
+function ClientView({ config, bookings, onBook }) {
+  const [step, setStep] = useState(1);
+  const [selectedService, setSelectedService] = useState(null);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [selectedTime, setSelectedTime] = useState(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [confirmed, setConfirmed] = useState(null);
+
+  const availableDays = [];
+  const today = new Date();
+  for (let i = 0; i < 21 && availableDays.length < 10; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const wd = String(d.getDay());
+    const cfg = config.schedule[wd];
+    if (cfg && cfg.active) {
+      availableDays.push({ date: d, iso: toISODate(d), weekday: wd, cfgDay: cfg });
+    }
+  }
+
+  function slotsForSelectedDate() {
+    if (!selectedDate) return [];
+    const day = availableDays.find((d) => d.iso === selectedDate);
+    if (!day) return [];
+    const allSlots = sortTimes(day.cfgDay.slots || []);
+    const taken = bookings
+      .filter((b) => b.date === selectedDate)
+      .map((b) => b.time);
+    return allSlots.filter((s) => !taken.includes(s));
+  }
+
+  function reset() {
+    setStep(1);
+    setSelectedService(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
+    setName("");
+    setPhone("");
+    setConfirmed(null);
+  }
+
+  function buildWhatsAppLink(booking) {
+    const dateObj = new Date(booking.date + "T00:00:00");
+    const dateLabel = dateObj.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    });
+    const msg = `Olá! Gostaria de confirmar meu agendamento:%0A%0A✨ Serviço: ${booking.serviceName}%0A📅 Data: ${dateLabel}%0A🕐 Horário: ${booking.time}%0A👤 Nome: ${booking.clientName}%0A💰 Valor: ${formatBRL(booking.price)}`;
+    const wa = config.whatsapp.replace(/\D/g, "");
+    return wa ? `https://wa.me/${wa}?text=${msg}` : null;
+  }
+
+  async function handleConfirm() {
+    const booking = {
+      id: `${Date.now()}`,
+      serviceId: selectedService.id,
+      serviceName: selectedService.name,
+      price: selectedService.price,
+      date: selectedDate,
+      time: selectedTime,
+      clientName: name.trim(),
+      clientPhone: phone.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    await onBook([...bookings, booking]);
+    setConfirmed(booking);
+    setStep(4);
+
+    // Vai direto para o WhatsApp da profissional com os dados já escritos
+    const waLink = buildWhatsAppLink(booking);
+    if (waLink) {
+      window.open(waLink, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  if (step === 4 && confirmed) {
+    const dateObj = new Date(confirmed.date + "T00:00:00");
+    const dateLabel = dateObj.toLocaleDateString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "long",
+    });
+    const waLink = buildWhatsAppLink(confirmed);
+
+    return (
+      <div
+        className="rounded-3xl p-8 text-center"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+      >
+        <div
+          className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: C.rose100 }}
+        >
+          <Check color={C.rose600} size={26} />
+        </div>
+        <h2 className="font-display text-2xl mb-1">Agendamento reservado!</h2>
+        <p className="text-sm mb-6" style={{ color: C.plum400 }}>
+          {waLink
+            ? "Abrimos o WhatsApp em uma nova aba com sua confirmação prontinha. Se não abriu, use o botão abaixo."
+            : "Envie a confirmação pelo WhatsApp para garantir seu horário."}
+        </p>
+        <div
+          className="text-left rounded-2xl p-5 mb-6 text-sm space-y-2"
+          style={{ backgroundColor: C.rose100 }}
+        >
+          <p>
+            <strong>Serviço:</strong> {confirmed.serviceName}
+          </p>
+          <p>
+            <strong>Data:</strong> {dateLabel}
+          </p>
+          <p>
+            <strong>Horário:</strong> {confirmed.time}
+          </p>
+          <p>
+            <strong>Valor:</strong> {formatBRL(confirmed.price)}
+          </p>
+        </div>
+        {waLink ? (
+          <a
+            href={waLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-medium text-white"
+            style={{ backgroundColor: "#3FA24A" }}
+          >
+            <Phone size={16} /> Abrir WhatsApp novamente
+          </a>
+        ) : (
+          <p className="text-sm" style={{ color: C.rose700 }}>
+            O número de WhatsApp da profissional ainda não foi configurado.
+          </p>
+        )}
+        <div>
+          <button
+            onClick={reset}
+            className="mt-6 text-sm underline"
+            style={{ color: C.plum400 }}
+          >
+            Fazer novo agendamento
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <StepHeader step={step} />
+
+      {step === 1 && (
+        <div>
+          <h2 className="font-display text-2xl mb-4">Escolha o serviço</h2>
+          {config.services.length === 0 ? (
+            <EmptyState text="Nenhum serviço cadastrado ainda." />
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {config.services.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setSelectedService(s);
+                    setStep(2);
+                  }}
+                  className="flex items-center gap-4 p-4 rounded-2xl text-left transition hover:-translate-y-0.5"
+                  style={{
+                    backgroundColor: C.surface,
+                    border: `1px solid ${C.line}`,
+                    boxShadow: "0 1px 6px rgba(61,40,51,0.05)",
+                  }}
+                >
+                  <ServiceDot color={s.color} size={16} />
+                  <div className="flex-1">
+                    <p className="font-medium" style={{ color: C.plum900 }}>
+                      {s.name}
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: C.plum400 }}>
+                      {s.duration} min
+                    </p>
+                    <p
+                      className="text-sm font-semibold mt-1"
+                      style={{ color: C.rose700 }}
+                    >
+                      {formatBRL(s.price)}
+                    </p>
+                  </div>
+                  <ChevronRight size={18} color={C.plum400} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 2 && (
+        <div>
+          <button
+            onClick={() => setStep(1)}
+            className="text-sm mb-4"
+            style={{ color: C.rose700 }}
+          >
+            ← Trocar serviço
+          </button>
+          <h2 className="font-display text-2xl mb-1">Escolha o dia</h2>
+          <p className="text-sm mb-4" style={{ color: C.plum400 }}>
+            Serviço selecionado: <strong>{selectedService.name}</strong>
+          </p>
+          {availableDays.length === 0 ? (
+            <EmptyState text="Nenhum dia disponível no momento. Volte em breve." />
+          ) : (
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {availableDays.map((d) => {
+                const active = selectedDate === d.iso;
+                return (
+                  <button
+                    key={d.iso}
+                    onClick={() => {
+                      setSelectedDate(d.iso);
+                      setSelectedTime(null);
+                    }}
+                    className="shrink-0 flex flex-col items-center justify-center rounded-2xl px-4 py-3 min-w-[64px]"
+                    style={{
+                      backgroundColor: active ? C.rose600 : C.surface,
+                      border: `1px solid ${active ? C.rose600 : C.line}`,
+                      color: active ? "#fff" : C.plum900,
+                    }}
+                  >
+                    <span className="text-[10px] uppercase tracking-wide">
+                      {d.date.toLocaleDateString("pt-BR", { weekday: "short" })}
+                    </span>
+                    <span className="text-lg font-semibold">{d.date.getDate()}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {selectedDate && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                <Clock size={16} color={C.gold500} /> Horários disponíveis
+              </h3>
+              {slotsForSelectedDate().length === 0 ? (
+                <EmptyState text="Todos os horários deste dia já foram reservados." />
+              ) : (
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                  {slotsForSelectedDate().map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setSelectedTime(t)}
+                      className="py-2 rounded-xl text-sm"
+                      style={{
+                        backgroundColor: selectedTime === t ? C.gold500 : C.rose100,
+                        color: selectedTime === t ? "#fff" : C.plum900,
+                      }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {selectedTime && (
+                <button
+                  onClick={() => setStep(3)}
+                  className="mt-6 w-full py-3 rounded-full text-sm font-medium text-white flex items-center justify-center gap-2"
+                  style={{ backgroundColor: C.rose700 }}
+                >
+                  Continuar <ChevronRight size={16} />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {step === 3 && (
+        <div>
+          <button
+            onClick={() => setStep(2)}
+            className="text-sm mb-4"
+            style={{ color: C.rose700 }}
+          >
+            ← Trocar horário
+          </button>
+          <h2 className="font-display text-2xl mb-4">Seus dados</h2>
+          <div
+            className="rounded-2xl p-4 mb-5 text-sm"
+            style={{ backgroundColor: C.rose100 }}
+          >
+            <p>
+              <strong>{selectedService.name}</strong> —{" "}
+              {new Date(selectedDate + "T00:00:00").toLocaleDateString("pt-BR", {
+                weekday: "long",
+                day: "2-digit",
+                month: "long",
+              })}{" "}
+              às {selectedTime}
+            </p>
+          </div>
+          <label className="block text-sm mb-1" style={{ color: C.plum700 }}>
+            Nome completo
+          </label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Como podemos te chamar"
+            className="w-full mb-4 px-4 py-3 rounded-xl text-sm"
+            style={{ border: `1px solid ${C.line}`, backgroundColor: C.surface }}
+          />
+          <label className="block text-sm mb-1" style={{ color: C.plum700 }}>
+            Seu WhatsApp
+          </label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="(11) 91234-5678"
+            className="w-full mb-6 px-4 py-3 rounded-xl text-sm"
+            style={{ border: `1px solid ${C.line}`, backgroundColor: C.surface }}
+          />
+          <button
+            disabled={!name.trim() || !phone.trim()}
+            onClick={handleConfirm}
+            className="w-full py-3 rounded-full text-sm font-medium text-white disabled:opacity-40"
+            style={{ backgroundColor: C.rose700 }}
+          >
+            Confirmar agendamento
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepHeader({ step }) {
+  const labels = ["Serviço", "Data e hora", "Seus dados"];
+  if (step === 4) return null;
+  return (
+    <div className="flex items-center gap-2 mb-6">
+      {labels.map((l, i) => {
+        const idx = i + 1;
+        const active = step === idx;
+        const done = step > idx;
+        return (
+          <div key={l} className="flex items-center gap-2">
+            <div
+              className="w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-medium"
+              style={{
+                backgroundColor: done || active ? C.rose600 : C.rose100,
+                color: done || active ? "#fff" : C.plum400,
+              }}
+            >
+              {done ? <Check size={12} /> : idx}
+            </div>
+            <span
+              className="text-xs hidden sm:inline"
+              style={{ color: active ? C.plum900 : C.plum400 }}
+            >
+              {l}
+            </span>
+            {idx < labels.length && (
+              <div className="w-4 h-px" style={{ backgroundColor: C.line }} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyState({ text }) {
+  return (
+    <div
+      className="rounded-2xl p-6 text-center text-sm"
+      style={{ backgroundColor: C.rose100, color: C.plum400 }}
+    >
+      {text}
+    </div>
+  );
+}
+
+// ================= TELA DE SENHA (ÁREA PROFISSIONAL) =================
+function ProfessionalGate({ onUnlock }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState("");
+
+  function handleSubmit() {
+    if (pin === PROFESSIONAL_PIN) {
+      setError("");
+      onUnlock();
+    } else {
+      setError("Senha incorreta. Tente novamente.");
+      setPin("");
+    }
+  }
+
+  return (
+    <div
+      className="rounded-3xl p-8 text-center max-w-sm mx-auto"
+      style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+    >
+      <div
+        className="mx-auto mb-4 w-14 h-14 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: C.rose100 }}
+      >
+        <Lock color={C.rose600} size={22} />
+      </div>
+      <h2 className="font-display text-2xl mb-1">Área restrita</h2>
+      <p className="text-sm mb-6" style={{ color: C.plum400 }}>
+        Digite a senha da profissional para continuar.
+      </p>
+      <div>
+        <input
+          type="password"
+          inputMode="numeric"
+          autoFocus
+          value={pin}
+          onChange={(e) => {
+            setPin(e.target.value);
+            setError("");
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSubmit();
+          }}
+          placeholder="Senha"
+          className="w-full mb-3 px-4 py-3 rounded-xl text-sm text-center tracking-[0.3em]"
+          style={{ border: `1px solid ${C.line}`, backgroundColor: C.bg }}
+        />
+        {error && (
+          <p className="text-xs mb-3" style={{ color: "#9B3B45" }}>
+            {error}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!pin}
+          className="w-full py-3 rounded-full text-sm font-medium text-white disabled:opacity-40"
+          style={{ backgroundColor: C.rose700 }}
+        >
+          Entrar
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ================= ABA PROFISSIONAL =================
+function ProfessionalView({ config, bookings, onSaveConfig, onSaveBookings }) {
+  const [local, setLocal] = useState(config);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setLocal(config);
+  }, [config]);
+
+  function update(patch) {
+    setLocal((prev) => ({ ...prev, ...patch }));
+    setDirty(true);
+  }
+
+  function updateService(id, patch) {
+    update({
+      services: local.services.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
+  }
+
+  function addService() {
+    update({
+      services: [
+        ...local.services,
+        {
+          id: `s${Date.now()}`,
+          name: "Novo serviço",
+          price: 40,
+          duration: 60,
+          color: SERVICE_COLORS[local.services.length % SERVICE_COLORS.length],
+        },
+      ],
+    });
+  }
+
+  function removeService(id) {
+    update({ services: local.services.filter((s) => s.id !== id) });
+  }
+
+  function updateDay(key, patch) {
+    update({
+      schedule: { ...local.schedule, [key]: { ...local.schedule[key], ...patch } },
+    });
+  }
+
+  function addSlot(dayKey, time) {
+    if (!time) return;
+    const current = local.schedule[dayKey].slots || [];
+    if (current.includes(time)) return;
+    updateDay(dayKey, { slots: sortTimes([...current, time]) });
+  }
+
+  function removeSlot(dayKey, time) {
+    const current = local.schedule[dayKey].slots || [];
+    updateDay(dayKey, { slots: current.filter((t) => t !== time) });
+  }
+
+  const [newSlot, setNewSlot] = useState({});
+
+  async function save() {
+    await onSaveConfig(local);
+    setDirty(false);
+  }
+
+  async function removeBooking(id) {
+    await onSaveBookings(bookings.filter((b) => b.id !== id));
+  }
+
+  const upcoming = [...bookings].sort((a, b) =>
+    `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`)
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Nome do salão + WhatsApp */}
+      <section
+        className="rounded-2xl p-5"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+      >
+        <h2 className="font-display text-xl mb-4">Dados do negócio</h2>
+        <label className="block text-sm mb-1" style={{ color: C.plum700 }}>
+          Nome do salão / profissional
+        </label>
+        <input
+          value={local.salonName}
+          onChange={(e) => update({ salonName: e.target.value })}
+          className="w-full mb-4 px-4 py-2.5 rounded-xl text-sm"
+          style={{ border: `1px solid ${C.line}` }}
+        />
+        <label className="block text-sm mb-1" style={{ color: C.plum700 }}>
+          WhatsApp para receber os agendamentos
+        </label>
+        <div className="flex items-center gap-2">
+          <Phone size={16} color={C.gold500} />
+          <input
+            value={local.whatsapp}
+            onChange={(e) => update({ whatsapp: e.target.value })}
+            placeholder="Ex: 11912345678 (DDI+DDD+número)"
+            className="w-full px-4 py-2.5 rounded-xl text-sm"
+            style={{ border: `1px solid ${C.line}` }}
+          />
+        </div>
+        <p className="text-xs mt-1" style={{ color: C.plum400 }}>
+          Use apenas números, com DDD (e DDI se preferir). Ex: 5511912345678
+        </p>
+      </section>
+
+      {/* Serviços e valores */}
+      <section
+        className="rounded-2xl p-5"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-xl">Serviços e valores</h2>
+          <button
+            onClick={addService}
+            className="flex items-center gap-1 text-sm px-3 py-1.5 rounded-full"
+            style={{ backgroundColor: C.rose100, color: C.rose700 }}
+          >
+            <Plus size={14} /> Adicionar
+          </button>
+        </div>
+        <div className="space-y-4">
+          {local.services.map((s) => (
+            <div
+              key={s.id}
+              className="flex flex-wrap items-center gap-3 p-3 rounded-xl"
+              style={{ backgroundColor: C.rose100 }}
+            >
+              <ServiceDot color={s.color} size={20} />
+              <input
+                value={s.name}
+                onChange={(e) => updateService(s.id, { name: e.target.value })}
+                className="flex-1 min-w-[140px] px-3 py-2 rounded-lg text-sm"
+                style={{ border: `1px solid ${C.line}` }}
+              />
+              <div className="flex items-center gap-1">
+                <span className="text-xs" style={{ color: C.plum400 }}>
+                  R$
+                </span>
+                <input
+                  type="number"
+                  value={s.price}
+                  onChange={(e) =>
+                    updateService(s.id, { price: Number(e.target.value) })
+                  }
+                  className="w-20 px-2 py-2 rounded-lg text-sm"
+                  style={{ border: `1px solid ${C.line}` }}
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={s.duration}
+                  onChange={(e) =>
+                    updateService(s.id, { duration: Number(e.target.value) })
+                  }
+                  className="w-16 px-2 py-2 rounded-lg text-sm"
+                  style={{ border: `1px solid ${C.line}` }}
+                />
+                <span className="text-xs" style={{ color: C.plum400 }}>
+                  min
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {SERVICE_COLORS.slice(0, 6).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => updateService(s.id, { color: c })}
+                    className="w-5 h-5 rounded-full"
+                    style={{
+                      backgroundColor: c,
+                      border: s.color === c ? `2px solid ${C.plum900}` : "1px solid rgba(0,0,0,0.1)",
+                    }}
+                    aria-label={`Cor ${c}`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => removeService(s.id)}
+                className="ml-auto p-2 rounded-lg"
+                style={{ color: C.rose700 }}
+                aria-label="Remover serviço"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Agenda semanal */}
+      <section
+        className="rounded-2xl p-5"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+      >
+        <h2 className="font-display text-xl mb-1">Horários da semana</h2>
+        <p className="text-sm mb-4" style={{ color: C.plum400 }}>
+          Escolha os dias que atende e adicione, um a um, os horários que quer
+          disponibilizar (ex.: 10h20, 21h40 — do jeito que fizer sentido pra você).
+        </p>
+        <div className="space-y-3">
+          {WEEKDAYS.map((wd) => {
+            const cfg = local.schedule[wd.key];
+            const slots = cfg.slots || [];
+            return (
+              <div
+                key={wd.key}
+                className="p-3 rounded-xl"
+                style={{ backgroundColor: cfg.active ? C.rose100 : "#F7F2EF" }}
+              >
+                <label className="flex items-center gap-2 text-sm font-medium mb-2">
+                  <input
+                    type="checkbox"
+                    checked={cfg.active}
+                    onChange={(e) => updateDay(wd.key, { active: e.target.checked })}
+                  />
+                  {wd.label}
+                </label>
+                {cfg.active && (
+                  <div>
+                    {slots.length > 0 ? (
+                      <div className="flex flex-wrap gap-2 mb-3">
+                        {slots.map((t) => (
+                          <span
+                            key={t}
+                            className="inline-flex items-center gap-1 pl-3 pr-1.5 py-1 rounded-full text-xs font-medium"
+                            style={{ backgroundColor: C.surface, border: `1px solid ${C.line}`, color: C.plum900 }}
+                          >
+                            {t}
+                            <button
+                              onClick={() => removeSlot(wd.key, t)}
+                              className="p-0.5 rounded-full"
+                              style={{ color: C.rose700 }}
+                              aria-label={`Remover horário ${t}`}
+                            >
+                              <X size={12} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs mb-3" style={{ color: C.plum400 }}>
+                        Nenhum horário adicionado ainda.
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="time"
+                        value={newSlot[wd.key] || ""}
+                        onChange={(e) =>
+                          setNewSlot((prev) => ({ ...prev, [wd.key]: e.target.value }))
+                        }
+                        className="px-2 py-1.5 rounded-lg text-sm"
+                        style={{ border: `1px solid ${C.line}` }}
+                      />
+                      <button
+                        onClick={() => {
+                          addSlot(wd.key, newSlot[wd.key]);
+                          setNewSlot((prev) => ({ ...prev, [wd.key]: "" }));
+                        }}
+                        disabled={!newSlot[wd.key]}
+                        className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full disabled:opacity-40"
+                        style={{ backgroundColor: C.rose600, color: "#fff" }}
+                      >
+                        <Plus size={13} /> Adicionar horário
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <button
+        onClick={save}
+        disabled={!dirty}
+        className="w-full py-3 rounded-full text-sm font-medium text-white disabled:opacity-40 flex items-center justify-center gap-2"
+        style={{ backgroundColor: C.rose700 }}
+      >
+        <Check size={16} /> Salvar alterações
+      </button>
+
+      {/* Próximos agendamentos */}
+      <section
+        className="rounded-2xl p-5"
+        style={{ backgroundColor: C.surface, border: `1px solid ${C.line}` }}
+      >
+        <h2 className="font-display text-xl mb-4 flex items-center gap-2">
+          <Calendar size={18} color={C.gold500} /> Próximos agendamentos
+        </h2>
+        {upcoming.length === 0 ? (
+          <EmptyState text="Nenhum agendamento por enquanto." />
+        ) : (
+          <div className="space-y-2">
+            {upcoming.map((b) => (
+              <div
+                key={b.id}
+                className="flex items-center gap-3 p-3 rounded-xl"
+                style={{ backgroundColor: C.rose100 }}
+              >
+                <div className="text-xs font-medium w-20" style={{ color: C.rose700 }}>
+                  {new Date(b.date + "T00:00:00").toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                  })}{" "}
+                  {b.time}
+                </div>
+                <div className="flex-1 text-sm">
+                  <p className="font-medium">{b.clientName}</p>
+                  <p style={{ color: C.plum400 }}>
+                    {b.serviceName} · {formatBRL(b.price)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeBooking(b.id)}
+                  className="p-2 rounded-lg"
+                  style={{ color: C.rose700 }}
+                  aria-label="Remover agendamento"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
